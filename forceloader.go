@@ -12,8 +12,10 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
+const name = "forceloader"
+
 var Analyzer = &analysis.Analyzer{
-	Name: "forceloader",
+	Name: name,
 	Doc:  "forceloader is testing tool for dataloader",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
@@ -48,6 +50,7 @@ func run(pass *analysis.Pass) (any, error) {
 	resolvers = append(resolvers, parseResolvers(inspect)...)
 	restrictedFields = append(restrictedFields, parseRestictedFields(inspect)...)
 	ignoreResolvers := strings.Split(*ignoreResolvers, ",")
+	ignores := extractIgnores(inspect)
 
 	inspect.Preorder([]ast.Node{
 		(*ast.FuncDecl)(nil),
@@ -75,10 +78,52 @@ func run(pass *analysis.Pass) (any, error) {
 
 		recvName := recv.Names[0]
 
-		detect(pass, n.Body.List, recvName, restrictedFields, ignoreResolvers)
+		detect(pass, n.Body.List, recvName, restrictedFields, ignoreResolvers, ignores)
 	})
 
 	return nil, nil
+}
+
+func extractIgnores(
+	inspect *inspector.Inspector,
+) []*ast.Comment {
+	comments := []*ast.Comment{}
+
+	inspect.Preorder([]ast.Node{
+		(*ast.File)(nil),
+	}, func(nd ast.Node) {
+		file, ok := nd.(*ast.File)
+		if !ok {
+			return
+		}
+
+		cms := lo.FlatMap(file.Comments, func(group *ast.CommentGroup, _ int) []*ast.Comment {
+			return lo.Filter(group.List, func(comment *ast.Comment, _ int) bool {
+				if !strings.Contains(comment.Text, "nolint") {
+					return false
+				}
+
+				rawComment := strings.TrimSpace(strings.Replace(comment.Text, "//", "", 1))
+				parsedComment := lo.Map(strings.Split(rawComment, ":"), func(value string, _ int) string {
+					return strings.TrimSpace(value)
+				})
+
+				if len(parsedComment) == 0 {
+					return false
+				}
+
+				targets := lo.Map(strings.Split(parsedComment[1], ","), func(value string, _ int) string {
+					return strings.TrimSpace(value)
+				})
+
+				return lo.Some(targets, []string{name})
+			})
+		})
+
+		comments = append(comments, cms...)
+	})
+
+	return comments
 }
 
 func detect(
@@ -87,13 +132,14 @@ func detect(
 	recvName *ast.Ident,
 	restrictedFields []string,
 	ignoreResolvers []string,
+	ignores []*ast.Comment,
 ) {
-	nodes := lo.FlatMap(list, func(item ast.Stmt, _ int) []*ast.CallExpr {
-		return extractCallExpr(item)
+	nodes := lo.FlatMap(list, func(item ast.Stmt, _ int) []extractCallExprResult {
+		return extractCallExpr(pass, item, nil, nil)
 	})
 
-	lo.ForEach(nodes, func(call *ast.CallExpr, _ int) {
-		selector, ok := call.Fun.(*ast.SelectorExpr)
+	lo.ForEach(nodes, func(result extractCallExprResult, _ int) {
+		selector, ok := result.callExpr.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return
 		}
@@ -128,6 +174,24 @@ func detect(
 		}
 
 		if lo.Contains(restrictedFields, selector2.Sel.Name) && !lo.Contains(ignoreResolvers, def.Name) {
+			isIgnored := lo.SomeBy(ignores, func(c *ast.Comment) bool {
+				commentPos := pass.Fset.Position(c.Pos())
+
+				if commentPos.Line == result.line {
+					return true
+				}
+
+				if commentPos.Line == result.line-1 && commentPos.Column == result.column {
+					return true
+				}
+
+				return false
+			})
+
+			if isIgnored {
+				return
+			}
+
 			pass.Report(analysis.Diagnostic{
 				Pos:     selector2.Pos(),
 				End:     selector2.End(),
@@ -137,7 +201,56 @@ func detect(
 	})
 }
 
-func extractCallExpr(item ast.Stmt) []*ast.CallExpr {
+type extractCallExprResult struct {
+	callExpr *ast.CallExpr
+	line     int
+	column   int
+}
+
+func newExtractCallExprResult(
+	pass *analysis.Pass,
+	item ast.Node,
+	call *ast.CallExpr,
+	line *int,
+	column *int,
+) extractCallExprResult {
+	_line, _column := parsePos(pass, item, line, column)
+
+	return extractCallExprResult{
+		callExpr: call,
+		line:     _line,
+		column:   _column,
+	}
+}
+
+func parsePos(
+	pass *analysis.Pass,
+	item ast.Node,
+	line *int,
+	column *int,
+) (int, int) {
+	pos := pass.Fset.Position(item.Pos())
+
+	_line := pos.Line
+	_column := pos.Column
+
+	if line != nil {
+		_line = *line
+	}
+
+	if column != nil {
+		_column = *column
+	}
+
+	return _line, _column
+}
+
+func extractCallExpr(
+	pass *analysis.Pass,
+	item ast.Node,
+	line *int,
+	column *int,
+) []extractCallExprResult {
 	switch item := item.(type) {
 	case *ast.IfStmt:
 		if item.Init != nil {
@@ -146,7 +259,9 @@ func extractCallExpr(item ast.Stmt) []*ast.CallExpr {
 				return nil
 			}
 
-			return extractCallExpr(assignstmt)
+			_line, _column := parsePos(pass, item, line, column)
+
+			return extractCallExpr(pass, assignstmt, &_line, &_column)
 		}
 
 		cond, ok := item.Cond.(*ast.BinaryExpr)
@@ -159,15 +274,17 @@ func extractCallExpr(item ast.Stmt) []*ast.CallExpr {
 			return nil
 		}
 
-		return []*ast.CallExpr{call}
+		_line, _column := parsePos(pass, item, line, column)
+		return extractCallExpr(pass, call, &_line, &_column)
 	case *ast.AssignStmt:
-		return lo.FilterMap(item.Rhs, func(item ast.Expr, _ int) (*ast.CallExpr, bool) {
-			call, ok := item.(*ast.CallExpr)
+		return lo.FlatMap(item.Rhs, func(_item ast.Expr, _ int) []extractCallExprResult {
+			call, ok := _item.(*ast.CallExpr)
 			if !ok {
-				return nil, false
+				return nil
 			}
 
-			return call, true
+			_line, _column := parsePos(pass, item, line, column)
+			return extractCallExpr(pass, call, &_line, &_column)
 		})
 	case *ast.ExprStmt:
 		call, ok := item.X.(*ast.CallExpr)
@@ -175,7 +292,28 @@ func extractCallExpr(item ast.Stmt) []*ast.CallExpr {
 			return nil
 		}
 
-		return []*ast.CallExpr{call}
+		_line, _column := parsePos(pass, item, line, column)
+		return extractCallExpr(pass, call, &_line, &_column)
+	case *ast.ParenExpr:
+		x, ok := item.X.(*ast.FuncLit)
+		if !ok {
+			return nil
+		}
+
+		return lo.FlatMap(x.Body.List, func(_item ast.Stmt, _ int) []extractCallExprResult {
+			return extractCallExpr(pass, _item, nil, nil)
+		})
+	case *ast.CallExpr:
+		_, ok := item.Fun.(*ast.SelectorExpr)
+		if !ok {
+			_line, _column := parsePos(pass, item, line, column)
+
+			return extractCallExpr(pass, item.Fun, &_line, &_column)
+		}
+
+		return []extractCallExprResult{
+			newExtractCallExprResult(pass, item, item, line, column),
+		}
 	}
 
 	return nil
