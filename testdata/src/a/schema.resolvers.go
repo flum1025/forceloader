@@ -87,29 +87,29 @@ func nestFuncForQueryResolver(r *queryResolver, usecase usecase.UseCase) {
 // Text is the resolver for the text field.
 func (r *todoResolver) Text(ctx context.Context, obj *Todo) (string, error) {
 	r.Loader.Hoge()
-	r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+	r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 
 	err := r.Loader.Hoge()
 	if err != nil {
 	}
-	err2 := r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+	err2 := r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 	if err2 != nil {
 	}
 
 	var err3 error
 	err3 = r.Loader.Hoge()
-	err3 = r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+	err3 = r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 	if err3 != nil {
 	}
 
 	if err := r.Loader.Hoge(); err != nil {
 	}
-	if err := r.UseCase.Fuga(); err != nil { // want `UseCase cannot be used in todoResolver`
+	if err := r.UseCase.Fuga(); err != nil { // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 	}
 
 	if r.Loader.Hoge() != nil {
 	}
-	if r.UseCase.Fuga() != nil { // want `UseCase cannot be used in todoResolver`
+	if r.UseCase.Fuga() != nil { // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 	}
 	panic(fmt.Errorf("not implemented: Text - text"))
 }
@@ -132,7 +132,7 @@ func (r *todoResolver) User(ctx context.Context, obj *Todo) (*User, error) {
 	r.UseCase.Fuga()
 	// nolint:  forceloader
 	r.UseCase.Fuga()
-	r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+	r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.User`
 
 	r.UseCase.Fuga() //nolint:forceloader
 	r.UseCase.Fuga() // nolint:forceloader
@@ -142,7 +142,7 @@ func (r *todoResolver) User(ctx context.Context, obj *Todo) (*User, error) {
 	r.UseCase.Fuga() // nolint: forceloader,hoge
 	r.UseCase.Fuga() //  nolint:forceloader
 	r.UseCase.Fuga() // nolint:  forceloader
-	r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+	r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.User`
 
 	(func() {
 		//nolint:forceloader
@@ -188,17 +188,17 @@ func (r *todoResolver) User(ctx context.Context, obj *Todo) (*User, error) {
 func nestFuncForTodoResolver(r *todoResolver, usecase usecase.UseCase) {
 	//nolint:forceloader
 	r.UseCase.Fuga()
-	r.UseCase.Fuga() // TODO: これ検知できるようにする
+	r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in a\.nestFuncForTodoResolver`
 
 	//nolint:forceloader
 	usecase.Fuga()
-	usecase.Fuga() // TODO: これ検知できるようにする
+	usecase.Fuga() // want `r\.UseCase\.Fuga cannot be used in a\.nestFuncForTodoResolver`
 }
 
 func (r *todoResolver) nestFunc() {
 	//nolint:forceloader
 	r.UseCase.Fuga()
-	r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+	r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.nestFunc`
 }
 
 // Mutation returns MutationResolver implementation.

@@ -10,8 +10,9 @@ run: build
 	cd ./testdata/src/a && \
 		go vet \
 		-vettool=../../../main \
-		--forceloader.restrictedFieldSuffix="UseCase" \
-		--forceloader.ignoreResolvers="queryResolver,mutationResolver" \
+		--forceloader.resolverStruct="a.Resolver" \
+		--forceloader.restrictedPackages="a/usecase" \
+		--forceloader.ignoreResolverStructs="a.queryResolver,a.mutationResolver" \
 		./...
 
 test:
