@@ -111,7 +111,8 @@ func (r *todoResolver) Text(ctx context.Context, obj *Todo) (string, error) {
 	}
 	if r.UseCase.Fuga() != nil { // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 	}
-	panic(fmt.Errorf("not implemented: Text - text"))
+
+	return "", r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a.todoResolver\)\.Text`
 }
 
 // User is the resolver for the user field.
@@ -147,7 +148,7 @@ func (r *todoResolver) User(ctx context.Context, obj *Todo) (*User, error) {
 	(func() {
 		//nolint:forceloader
 		r.UseCase.Fuga()
-		r.UseCase.Fuga() // want `UseCase cannot be used in todoResolver`
+		r.UseCase.Fuga() // want `r\.UseCase\.Fuga cannot be used in \(\*a\.todoResolver\).User\$1`
 	})()
 
 	nestFuncForTodoResolver(r, r.UseCase)
@@ -182,7 +183,7 @@ func (r *todoResolver) User(ctx context.Context, obj *Todo) (*User, error) {
 	if r.UseCase.Fuga() != nil { //nolint:forceloader
 	}
 
-	panic(fmt.Errorf("not implemented: User - user"))
+	return nil, r.UseCase.Fuga() //nolint:forceloader
 }
 
 func nestFuncForTodoResolver(r *todoResolver, usecase usecase.UseCase) {

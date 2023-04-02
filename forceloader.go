@@ -158,12 +158,32 @@ func getSourceCaller(
 func isResolver(
 	fn *ssa.Function,
 ) bool {
-	return lo.SomeBy(fn.Params, func(param *ssa.Parameter) bool {
+	ptrs := make([]*types.Pointer, 0, len(fn.FreeVars)+len(fn.Params))
+
+	lo.ForEach(fn.FreeVars, func(param *ssa.FreeVar, _ int) {
 		ptr, ok := param.Type().(*types.Pointer)
 		if !ok {
-			return false
+			return
 		}
 
+		ptr2, ok := ptr.Elem().(*types.Pointer)
+		if !ok {
+			return
+		}
+
+		ptrs = append(ptrs, ptr2)
+	})
+
+	lo.ForEach(fn.Params, func(param *ssa.Parameter, _ int) {
+		ptr, ok := param.Type().(*types.Pointer)
+		if !ok {
+			return
+		}
+
+		ptrs = append(ptrs, ptr)
+	})
+
+	return lo.SomeBy(ptrs, func(ptr *types.Pointer) bool {
 		named, ok := ptr.Elem().(*types.Named)
 		if !ok {
 			return false
