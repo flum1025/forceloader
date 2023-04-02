@@ -9,8 +9,9 @@ import (
 )
 
 func TestAnalyzer(t *testing.T) {
-	forceloader.SetRestrictedFieldSuffix("UseCase")
-	forceloader.SetIgnoreResolvers("queryResolver,mutationResolver")
+	forceloader.SetResolverStruct("a.Resolver")
+	forceloader.SetRestrictedPackages("a/usecase")
+	forceloader.SetIgnoreResolverStructs("a.queryResolver,a.mutationResolver")
 
 	testdata := testutil.WithModules(t, analysistest.TestData(), nil)
 	analysistest.Run(t, testdata, forceloader.Analyzer, "a")

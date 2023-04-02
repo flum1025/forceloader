@@ -1,9 +1,13 @@
 package forceloader
 
-func SetRestrictedFieldSuffix(val string) {
-	restrictedFieldSuffix = &val
+func SetIgnoreResolverStructs(val string) {
+	ignoreResolverStructs = &val
 }
 
-func SetIgnoreResolvers(val string) {
-	ignoreResolvers = &val
+func SetResolverStruct(val string) {
+	resolverStruct = &val
+}
+
+func SetRestrictedPackages(val string) {
+	restrictedPackages = &val
 }
