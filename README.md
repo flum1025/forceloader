@@ -13,8 +13,9 @@ $ go install github.com/flum1025/forceloader/cmd/forceloader@latest
 ```sh
 $ go vet \
 		-vettool=$(which forceloader) \
-		--forceloader.restrictedFieldSuffix="UseCase" \
-		--forceloader.ignoreResolvers="queryResolver,mutationResolver" \
+		--forceloader.resolverStruct="a.Resolver" \
+		--forceloader.restrictedPackages="a/usecase" \
+		--forceloader.ignoreResolverStructs="a.queryResolver,a.mutationResolver" \
 		./...
 ```
 
