@@ -3,7 +3,6 @@ module github.com/flum1025/forceloader
 go 1.20
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/gostaticanalysis/testutil v0.4.0
 	github.com/samber/lo v1.38.1
 	golang.org/x/tools v0.7.0
